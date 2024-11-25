@@ -22,14 +22,23 @@ ${content}
 `;
 }
 
-async function readDirectoryRecursive(uri: vscode.Uri): Promise<vscode.Uri[]> {
+async function readDirectoryRecursive(
+  uri: vscode.Uri,
+  ignorePatterns: string[]
+): Promise<vscode.Uri[]> {
   let files = await vscode.workspace.fs.readDirectory(uri);
   let fileUris: vscode.Uri[] = [];
 
   for (let [fileName, fileType] of files) {
     let fileUri = vscode.Uri.joinPath(uri, fileName);
+
+    // Check if the file matches any ignore pattern
+    if (ignorePatterns.some(pattern => fileName.includes(pattern))) {
+      continue;
+    }
+
     if (fileType === vscode.FileType.Directory) {
-      let subDirectoryFiles = await readDirectoryRecursive(fileUri);
+      let subDirectoryFiles = await readDirectoryRecursive(fileUri, ignorePatterns);
       fileUris.push(...subDirectoryFiles);
     } else if (fileType === vscode.FileType.File) {
       fileUris.push(fileUri);
@@ -40,6 +49,9 @@ async function readDirectoryRecursive(uri: vscode.Uri): Promise<vscode.Uri[]> {
 }
 
 async function copyDirectory(uri: vscode.Uri) {
+  const ignorePatterns: string[] =
+    vscode.workspace.getConfiguration("copyToGptChat").get("ignore") || [];
+
   let directoryPath = vscode.workspace.asRelativePath(uri);
   let projectName = vscode.workspace.name || "Unknown";
 
@@ -50,7 +62,7 @@ Directory Path: '${directoryPath}'
 ===============================
 `;
 
-  let fileUris = await readDirectoryRecursive(uri);
+  let fileUris = await readDirectoryRecursive(uri, ignorePatterns);
   for (let fileUri of fileUris) {
     toCopy += await copyFile(fileUri);
   }
@@ -102,4 +114,4 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-export function deactivate() {}
+export function deactivate() { }
